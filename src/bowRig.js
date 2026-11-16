@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
-import { buildBow, setBowDraw } from './bow.js';
+import { buildBow, setBowDraw, nockPoint, applyBowModel } from './bow.js';
 
 const _fwd = new THREE.Vector3();
 const _nat = new THREE.Vector3();
+const _tip = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _swing = new THREE.Quaternion();
 const BOW_FWD = new THREE.Vector3(0, 0, -1);
@@ -14,39 +15,45 @@ const BOW_FWD = new THREE.Vector3(0, 0, -1);
 const GRIP_FIX = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
 
 /**
- * Owns the bow object and the draw state machine.
+ * Owns the bow and the draw state machine.
  *
- * Anchoring rule: the bow NEVER leaves the grip hand's position. While the
- * string is drawn the bow's *rotation* is re-derived each frame from
- *   aim axis  = gripPos - drawPos      (so pulling past your cheek aims it)
- *   roll/cant = grip hand's own twist  (so the bow tilts on its grip anchor)
- * which is what makes the bow feel pivoted on the grip rather than snapped
- * to a hand pose.
+ * An arrow is always on the string, sitting part-drawn at CONFIG.draw.idle.
+ * You start a shot by reaching for that arrow's nock and squeezing: the draw
+ * then follows your hand. You are literally pulling the arrow, not pressing a
+ * "draw" button somewhere near the bow.
+ *
+ * Anchoring rule: the bow never leaves the grip hand's position. While drawn
+ * its rotation is rebuilt each frame from
+ *   aim   = gripPos - stringHandPos   (pulling past your cheek aims it)
+ *   cant  = the grip hand's own twist (the bow rolls on its grip anchor)
  */
 export class BowRig {
   constructor(scene) {
     this.object = buildBow();
     scene.add(this.object);
 
-    this.nocked = false;
-    this.drawLen = 0;
+    this.nocked = false;       // the string hand has hold of the arrow
+    this.drawLen = CONFIG.draw.idle;
     this.ratio = 0;
-    this.visualDraw = 0;
+    this.visualDraw = CONFIG.draw.idle;
     this.aim = new THREE.Vector3(0, 0, -1);
-    this.origin = new THREE.Vector3();
+    this.nockWorld = new THREE.Vector3();
+    this.grabDist = Infinity;  // string hand -> nock, for the HUD/debug
+    this.canGrab = false;
     this.lastHaptic = 0;
-    this.onRelease = null; // (origin, dir, speed, ratio) => void
+    this.onRelease = null;     // (origin, dir, speed, ratio) => void
+
+    setBowDraw(this.object, this.visualDraw, true);
+    this.object.updateMatrixWorld(true);
+    this.object.localToWorld(nockPoint(this.object, this.visualDraw, this.nockWorld));
   }
 
-  get span() { return CONFIG.draw.max - CONFIG.draw.rest; }
+  /** Swap the procedural stand-in for a loaded model, in place. */
+  useModel(gltfScene) { return applyBowModel(this.object, gltfScene); }
 
-  /** True while the shot is committed — role switching is locked here. */
+  get span() { return CONFIG.draw.max - CONFIG.draw.rest; }
   get locked() { return this.nocked; }
 
-  /**
-   * @param {{pos:THREE.Vector3, quat:THREE.Quaternion, trigger:number, pulse:Function}} grip
-   * @param {{pos:THREE.Vector3, quat:THREE.Quaternion, trigger:number, pulse:Function}} draw
-   */
   update(dt, grip, draw) {
     if (!grip) { this.object.visible = false; return; }
     this.object.visible = true;
@@ -54,9 +61,12 @@ export class BowRig {
     const d = CONFIG.draw;
     const sep = draw ? grip.pos.distanceTo(draw.pos) : 0;
 
-    // --- nock / release -----------------------------------------------------
+    // --- grab the arrow / let it fly ---------------------------------------
+    this.grabDist = draw ? draw.pos.distanceTo(this.nockWorld) : Infinity;
+    this.canGrab = !this.nocked && this.grabDist <= d.grabRadius;
+
     if (draw) {
-      if (!this.nocked && draw.trigger > 0.6 && sep < 0.45) {
+      if (this.canGrab && draw.trigger > 0.6) {
         this.nocked = true;
         draw.pulse?.(0.25, 25);
       } else if (this.nocked && draw.trigger < 0.35) {
@@ -68,9 +78,10 @@ export class BowRig {
 
     // --- draw amount -------------------------------------------------------
     if (this.nocked) {
-      this.drawLen = THREE.MathUtils.clamp(sep - d.rest, 0, this.span);
-      this.ratio = this.drawLen / this.span;
-      // Creaking feedback every 20% of draw.
+      this.drawLen = THREE.MathUtils.clamp(sep - d.rest, d.idle, this.span);
+      this.ratio = THREE.MathUtils.clamp(
+        (this.drawLen - d.idle) / (this.span - d.idle), 0, 1
+      );
       const step = Math.floor(this.ratio * 5);
       if (step !== this.lastHaptic) {
         this.lastHaptic = step;
@@ -78,18 +89,17 @@ export class BowRig {
         grip.pulse?.(0.04, 12);
       }
     } else {
-      this.drawLen = 0;
+      this.drawLen = d.idle;
       this.ratio = 0;
       this.lastHaptic = 0;
     }
-    // String snaps forward faster than it is pulled back.
-    const k = this.nocked ? 1 : Math.min(1, dt * 28);
-    this.visualDraw += (this.drawLen - this.visualDraw) * (this.nocked ? 1 : k);
-    setBowDraw(this.object, this.visualDraw, this.nocked);
+    // The string snaps home far faster than you can pull it.
+    this.visualDraw += (this.drawLen - this.visualDraw) *
+      (this.nocked ? 1 : Math.min(1, dt * 28));
+    setBowDraw(this.object, this.visualDraw, true);
 
     // --- transform ---------------------------------------------------------
     this.object.position.copy(grip.pos);
-    this.origin.copy(grip.pos);
 
     if (this.nocked && draw && sep > 0.03) {
       _fwd.subVectors(grip.pos, draw.pos).normalize();
@@ -111,6 +121,10 @@ export class BowRig {
       this.object.quaternion.slerp(_q, Math.min(1, dt * 30));
       this.aim.set(0, 0, -1).applyQuaternion(this.object.quaternion);
     }
+
+    // Keep the world-space nock current for next frame's grab test.
+    this.object.updateMatrixWorld(true);
+    this.object.localToWorld(nockPoint(this.object, this.visualDraw, this.nockWorld));
   }
 
   release(grip, draw) {
@@ -118,12 +132,15 @@ export class BowRig {
     this.nocked = false;
     if (ratio >= CONFIG.draw.minReleaseRatio && this.onRelease) {
       const speed = THREE.MathUtils.lerp(CONFIG.draw.minSpeed, CONFIG.draw.maxSpeed, ratio);
-      const origin = grip.pos.clone().addScaledVector(this.aim, 0.12);
-      this.onRelease(origin, this.aim.clone(), speed, ratio);
+      // Launch from the arrow's own head, not from a point near the fist, so
+      // the shot starts exactly where the player sees the arrowhead.
+      nockPoint(this.object, this.visualDraw, _tip);
+      this.object.localToWorld(_tip).addScaledVector(this.aim, CONFIG.arrow.length);
+      this.onRelease(_tip.clone(), this.aim.clone(), speed, ratio);
     }
     grip.pulse?.(0.35 + 0.6 * ratio, 45);
     draw?.pulse?.(0.2 + 0.5 * ratio, 30);
-    this.drawLen = 0;
+    this.drawLen = CONFIG.draw.idle;
     this.ratio = 0;
   }
 }

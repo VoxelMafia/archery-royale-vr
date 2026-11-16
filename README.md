@@ -41,8 +41,12 @@ trade-off is documented rather than argued about).
 
 ### 2. Draw
 
-Trigger on the string hand, with that hand within reach of the bow, nocks an
-arrow. Hand separation drives the draw:
+An arrow is always sitting on the string, part-drawn. You reach for its **nock**
+(within 17 cm) and squeeze the trigger to take hold of it — the draw follows
+your hand from there, so you are pulling the arrow rather than pressing a
+button near the bow. The arrow's tail is welded to the string's nocking point
+and only its head swings aside to clear the riser (archer's paradox), so shaft
+and string are never apart. Hand separation drives the draw:
 
 ```
 drawLen = clamp(|grip − string| − rest, 0, max − rest)      rest 0.20 m, max 0.62 m
@@ -71,6 +75,30 @@ bug here; `npm test` has the case that caught it.)
 
 Undrawn, the bow simply follows the grip hand pose.
 
+### 4. Feather jump
+
+Hold the feather (grip, away from your head) and swing your hand **down**. The
+flap reads the hand's real world-space velocity over a ~60 ms window, so a lazy
+wave is a hop and a hard beat is a launch. A second flap in mid-air *sets*
+upward velocity rather than adding to it, which cancels the fall and catches
+you cleanly. Hold the feather above your head on the way down and gravity drops
+to a fifth with a 1.6 m/s terminal fall. Landings are absorbed by a critically
+damped spring instead of snapping to the floor — a hard stop at ground level
+reads as a jolt through the whole view in VR.
+
+Turning rotates the rig about the **head**, not the rig origin, so a room-scale
+player is not swung sideways through their room as they turn.
+
+### 5. The bow model
+
+`assets/black_bow.glb` is fitted at load: its limb axis, string plane and
+overall size are measured from the geometry, then it is rotated upright, scaled
+to `CONFIG.bow.length` (1.72 m tip to tip) and shifted so the grip lands on the
+origin one brace height in front of the string. Its own string mesh is dropped —
+ours has to bend — and its materials are replaced with flat black. Nothing is
+hardcoded to this particular model; drop in another bow and it refits itself.
+Until it loads (or if it fails), the procedural stand-in is used.
+
 ---
 
 ## Controls
@@ -81,8 +109,11 @@ Undrawn, the bow simply follows the grip hand pose.
 | Nock & draw | **trigger**, string hand | hold **LMB** |
 | Loose | release trigger | release **LMB** |
 | Cant the bow | twist the grip wrist | **Z** / **C** |
-| Move | thumbstick | **WASD** |
-| Turn | thumbstick hard left/right (snap) | mouse |
+| Jump (feather) | hold **grip**, swing the hand down | **Space** |
+| Double jump | swing again in mid-air | **Space** again |
+| Feather-fall | hold the feather above your head | — |
+| Move | left thumbstick | **WASD** |
+| Turn | right thumbstick (smooth) | mouse or **← →** |
 
 The desktop fallback simulates a head and two hands and feeds them through the
 *same* role arbiter and bow rig as VR — **Q** literally poses the free hand at

@@ -6,6 +6,9 @@ import { BowRig } from './bowRig.js';
 import { ArrowManager } from './arrows.js';
 import { XRInput, DesktopInput } from './input.js';
 import { BowHud } from './hud.js';
+import { PlayerBody } from './playerBody.js';
+import { FeatherController } from './feather.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ---------------------------------------------------------------------------
 // Renderer / scene
@@ -43,6 +46,20 @@ const bowRig = new BowRig(scene);
 const arrows = new ArrowManager(scene, dungeon.colliders);
 const hud = new BowHud(bowRig.object);
 const roles = new HandRoleArbiter();
+const body = new PlayerBody(player);
+const feather = new FeatherController(scene);
+
+// The black bow replaces the procedural stand-in as soon as it arrives, so a
+// slow download (or a missing file) never blocks the prototype.
+new GLTFLoader().load(
+  CONFIG.bow.modelUrl,
+  (gltf) => {
+    const fit = bowRig.useModel(gltf.scene);
+    console.info(`[bow] model fitted: scale ${fit.scale.toFixed(4)}, tips +/-${fit.tipY.toFixed(3)} m`);
+  },
+  undefined,
+  (err) => console.warn('[bow] model failed, keeping the stand-in:', err?.message || err)
+);
 
 let score = 0;
 let shafts = 0;
@@ -83,12 +100,42 @@ const _fwd = new THREE.Vector3();
 const _right = new THREE.Vector3();
 let snapCooldown = 0;
 
-function locomote(dt, move) {
-  if (snapCooldown > 0) snapCooldown -= dt;
-  if (move.turn && snapCooldown <= 0) {
-    player.rotateY(-move.turn * CONFIG.player.snapTurn);
-    snapCooldown = 0.28;
+const _pivot = new THREE.Vector3();
+
+/**
+ * Turning rotates the rig about the HEAD, not about the rig's origin. Spin a
+ * room-scale rig around its origin and the player gets swung sideways through
+ * the room, which is a reliable way to make someone ill; about the head, the
+ * world turns around them and they stay put.
+ */
+function turn(dt, axis) {
+  const p = CONFIG.player;
+  if (p.turnMode === 'snap') {
+    if (snapCooldown > 0) snapCooldown -= dt;
+    if (Math.abs(axis) > 0.8 && snapCooldown <= 0) {
+      rotateAboutHead(-Math.sign(axis) * p.snapTurn);
+      snapCooldown = 0.28;
+    }
+    return;
   }
+  if (Math.abs(axis) < p.turnDeadzone) return;
+  // Re-map past the deadzone so there is no step at the edge of it.
+  const a = (Math.abs(axis) - p.turnDeadzone) / (1 - p.turnDeadzone);
+  rotateAboutHead(-Math.sign(axis) * a * a * p.turnSpeed * dt);
+}
+
+function rotateAboutHead(angle) {
+  camera.getWorldPosition(_pivot);
+  player.position.sub(_pivot);
+  player.position.applyAxisAngle(UP, angle);
+  player.position.add(_pivot);
+  player.rotateY(angle);
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+function locomote(dt, move) {
+  turn(dt, move.turnAxis);
   if (!move.x && !move.y) return;
 
   camera.getWorldDirection(_fwd);
@@ -97,7 +144,7 @@ function locomote(dt, move) {
   _fwd.normalize();
   _right.set(_fwd.z, 0, -_fwd.x);
 
-  const s = CONFIG.player.speed * dt;
+  const s = CONFIG.player.speed * dt * body.controlScale;
   player.position.addScaledVector(_fwd, move.y * s);
   player.position.addScaledVector(_right, -move.x * s);
   // Keep the archer inside the courtyard.
@@ -111,7 +158,18 @@ function locomote(dt, move) {
 const clock = new THREE.Clock();
 let t = 0;
 
+// three re-arms its animation loop *after* the callback returns, so a single
+// thrown frame kills rendering for good -- in a headset that reads as a freeze.
+// Catch, report once, keep drawing.
+let frameErrors = 0;
 renderer.setAnimationLoop(() => {
+  try { frame(); } catch (err) {
+    if (frameErrors++ === 0) console.error('[frame]', err);
+    window.__frameError = String(err?.stack || err);
+  }
+});
+
+function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
   t += dt;
 
@@ -128,17 +186,26 @@ renderer.setAnimationLoop(() => {
   //    by the grip hand's own twist.
   bowRig.update(dt, input[roles.bow], input[roles.draw]);
 
-  // 3. Arrows, world, HUD.
+  // 3. Feather in the free hand: swing it down to launch, again to catch
+  //    yourself mid-air, hold it overhead to glide.
+  feather.update(dt, bowRig.nocked ? null : input[roles.draw], input.head.pos, body);
+  body.update(dt, feather.gliding);
+
+  // 4. Arrows, world, HUD.
   arrows.update(dt);
   dungeon.update(t);
-  hud.set({ bow: roles.bow, draw: roles.draw, ratio: bowRig.ratio, claim: roles.progress });
+  hud.set({
+    bow: roles.bow, draw: roles.draw, ratio: bowRig.ratio, claim: roles.progress,
+    grab: bowRig.canGrab, air: !body.grounded, flaps: body.flapsUsed,
+    glide: feather.gliding,
+  });
   hud.render();
 
   locomote(dt, input.move);
   updateOverlay(presenting);
 
   renderer.render(scene, camera);
-});
+}
 
 // ---------------------------------------------------------------------------
 // DOM overlay: enter-VR button + desktop controls + live readout
@@ -182,19 +249,26 @@ function updateOverlay(presenting) {
   if ((overlayTick = (overlayTick + 1) % 6) !== 0) return;
   readout.textContent =
     `bow ${roles.bow}  |  string ${roles.draw}  |  draw ${Math.round(bowRig.ratio * 100)}%` +
-    `  |  head-dist L ${fmt(roles.headDist.left)} R ${fmt(roles.headDist.right)}` +
-    `  |  score ${score}  |  shafts ${shafts}`;
+    `  |  grab ${fmt(bowRig.grabDist)}${bowRig.canGrab ? ' *' : ''}` +
+    `  |  y ${player.position.y.toFixed(2)} vy ${body.vel.y.toFixed(1)} flaps ${body.flapsUsed}` +
+    `${feather.gliding ? ' glide' : ''}  |  score ${score}  |  shafts ${shafts}`;
 }
 const fmt = (v) => (Number.isFinite(v) ? v.toFixed(2) : '--');
 
 // Live handles for tuning from the devtools console, e.g.
 //   __AR.config.draw.maxSpeed = 95
 window.__AR = {
-  config: CONFIG, roles, bowRig, arrows, dungeon, player, camera, renderer,
+  config: CONFIG, roles, bowRig, arrows, dungeon, player, camera, renderer, body, feather,
+  input: { xr: xrInput, desktop: deskInput },
+  error: () => window.__frameError || null,
   stats: () => ({
     bow: roles.bow, string: roles.draw, draw: +bowRig.ratio.toFixed(3),
     nocked: bowRig.nocked, claim: +roles.progress.toFixed(2),
     headDist: { left: +roles.headDist.left.toFixed(3), right: +roles.headDist.right.toFixed(3) },
     live: arrows.live.length, score, shafts,
+    canGrab: bowRig.canGrab, grabDist: +bowRig.grabDist.toFixed(3),
+    y: +player.position.y.toFixed(3), vy: +body.vel.y.toFixed(2),
+    grounded: body.grounded, flaps: body.flapsUsed, gliding: feather.gliding,
+    swing: +feather.swingSpeed.toFixed(2),
   }),
 };

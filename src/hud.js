@@ -19,7 +19,10 @@ export class BowHud {
     this.mesh.rotation.x = -0.25;
     bowObject.add(this.mesh);
 
-    this.state = { bow: 'left', draw: 'right', ratio: 0, score: 0, last: '', claim: 0, arrows: 0 };
+    this.state = {
+      bow: 'left', draw: 'right', ratio: 0, score: 0, last: '', claim: 0, arrows: 0,
+      grab: false, air: false, flaps: 0, glide: false,
+    };
     this._dirty = true;
   }
 
@@ -67,6 +70,15 @@ export class BowHud {
     if (s.claim > 0.01) {
       c.fillStyle = '#d9b24c';
       c.fillText(`switching hands... ${Math.round(s.claim * 100)}%`, 28, 216);
+    } else if (s.glide) {
+      c.fillStyle = '#9ec7e8';
+      c.fillText('feather-fall', 28, 216);
+    } else if (s.air) {
+      c.fillStyle = '#9ec7e8';
+      c.fillText(s.flaps > 1 ? 'airborne - second flap spent' : 'airborne - one flap left', 28, 216);
+    } else if (s.grab) {
+      c.fillStyle = '#d9b24c';
+      c.fillText('reach the nock - squeeze to draw', 28, 216);
     } else if (s.last) {
       c.fillStyle = '#cfd4dc';
       c.fillText(s.last, 28, 216);
