@@ -21,7 +21,7 @@ export class BowHud {
 
     this.state = {
       bow: 'left', draw: 'right', ratio: 0, score: 0, last: '', claim: 0, arrows: 0,
-      grab: false, air: false, flaps: 0, glide: false,
+      grab: false, fetch: false, arrowState: 'none', air: false, flaps: 0, glide: false,
     };
     this._dirty = true;
   }
@@ -76,9 +76,18 @@ export class BowHud {
     } else if (s.air) {
       c.fillStyle = '#9ec7e8';
       c.fillText(s.flaps > 1 ? 'airborne - second flap spent' : 'airborne - one flap left', 28, 216);
+    } else if (s.fetch) {
+      c.fillStyle = '#d9b24c';
+      c.fillText('squeeze to draw a shaft', 28, 216);
+    } else if (s.arrowState === 'none') {
+      c.fillStyle = '#9aa3ae';
+      c.fillText('empty - reach behind your shoulder', 28, 216);
+    } else if (s.arrowState === 'hand') {
+      c.fillStyle = '#d9b24c';
+      c.fillText('bring it to the string', 28, 216);
     } else if (s.grab) {
       c.fillStyle = '#d9b24c';
-      c.fillText('reach the nock - squeeze to draw', 28, 216);
+      c.fillText('take the nock - squeeze to draw', 28, 216);
     } else if (s.last) {
       c.fillStyle = '#cfd4dc';
       c.fillText(s.last, 28, 216);

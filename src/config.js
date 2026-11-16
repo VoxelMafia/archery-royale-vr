@@ -29,6 +29,16 @@ export const CONFIG = {
     metalness: 0.22,
   },
 
+  // --- Quiver ---------------------------------------------------------------
+  quiver: {
+    // Behind the shoulder of the STRING hand, relative to the head (m).
+    shoulder: { x: 0.19, y: -0.22, z: 0.16 },
+    tilt: 0.42,        // lean out from the back (rad)
+    lean: -0.3,        // and back, so the fletchings sit where a hand lands
+    grabHeight: 0.3,   // the grab point above the quiver's centre (m)
+    grabRadius: 0.26,  // generous: you cannot see your own shoulder
+  },
+
   // --- Draw ----------------------------------------------------------------
   draw: {
     idle: 0.08,        // string sits part-drawn with an arrow on it (m)

@@ -138,6 +138,7 @@ export class DesktopInput {
     this.pullT = 0;
     this.claimT = 0;            // seconds of claim gesture left
     this.swingT = -1;           // arm-swing animation clock (s)
+    this.fetchT = -1;           // reach-behind-the-shoulder clock (s)
     this.keys = new Set();
     this.move = { x: 0, y: 0, turn: 0, turnAxis: 0 };
     this.head = { pos: new THREE.Vector3(), quat: new THREE.Quaternion() };
@@ -156,6 +157,8 @@ export class DesktopInput {
       // Space swings the free hand down for real, rather than calling the
       // jump directly: the same velocity detector runs as in the headset.
       if (e.code === 'Space' && this.swingT < 0) this.swingT = 0;
+      // R reaches the hand back to the quiver and squeezes, exactly as in VR.
+      if (e.code === 'KeyR' && this.fetchT < 0) this.fetchT = 0;
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     domElement.addEventListener('click', () => domElement.requestPointerLock?.());
@@ -170,7 +173,7 @@ export class DesktopInput {
   }
 
   /** @param {'left'|'right'} bowSide which hand currently holds the bow */
-  read(camera, dt, bowSide) {
+  read(camera, dt, bowSide, quiverPoint = null) {
     this.pullT = THREE.MathUtils.clamp(
       this.pullT + (this.pulling ? dt / 0.5 : -dt / 0.1), 0, 1
     );
@@ -198,6 +201,10 @@ export class DesktopInput {
         : -0.5 * Math.max(0, 1 - (this.swingT - 0.1) / 0.25);
       if (this.swingT > 0.35) this.swingT = -1;
     }
+    if (this.fetchT >= 0) {
+      this.fetchT += dt;
+      if (this.fetchT > 0.6) this.fetchT = -1;
+    }
 
     const drawSide = bowSide === 'left' ? 'right' : 'left';
     const bowSgn = bowSide === 'left' ? -1 : 1;
@@ -215,6 +222,15 @@ export class DesktopInput {
 
     // Draw hand: chest -> past the cheek as the draw builds.
     const draw = this._pose[drawSide];
+    if (this.fetchT >= 0 && quiverPoint) {
+      // Hand goes to the quiver and squeezes; the rig's own reach test decides.
+      draw.pos.copy(quiverPoint);
+      draw.quat.copy(hq);
+      draw.trigger = 1;
+      draw.squeeze = 0;
+      draw.pull = 1;
+      return { head: this.head, left: this._pose.left, right: this._pose.right, move: this.move };
+    }
     if (this.claimT > 0) {
       // Claim gesture: hand in to the head, grip held.
       this._v.set(-bowSgn * 0.16, -0.04, -0.12);

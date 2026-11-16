@@ -8,6 +8,7 @@ import { XRInput, DesktopInput } from './input.js';
 import { BowHud } from './hud.js';
 import { PlayerBody } from './playerBody.js';
 import { SwingJump } from './jump.js';
+import { Quiver } from './quiver.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +49,7 @@ const hud = new BowHud(bowRig.object);
 const roles = new HandRoleArbiter();
 const body = new PlayerBody(player);
 const swingJump = new SwingJump();
+const quiver = new Quiver(scene);
 
 // The black bow replaces the procedural stand-in as soon as it arrives, so a
 // slow download (or a missing file) never blocks the prototype.
@@ -176,27 +178,32 @@ function frame() {
   const presenting = renderer.xr.isPresenting;
   const input = presenting
     ? xrInput.read(camera)
-    : deskInput.read(camera, dt, roles.bow);
+    : deskInput.read(camera, dt, roles.bow, quiver.grabPoint);
 
   // 1. Who holds what (frozen while the string is nocked).
   if (roles.update(dt, input.head.pos, input, bowRig.locked)) deskInput.claimT = 0;
   if (presenting) tintHands();
 
-  // 2. Bow: anchored to the grip hand, aimed by grip<-string vector, canted
-  //    by the grip hand's own twist.
-  bowRig.update(dt, input[roles.bow], input[roles.draw]);
+  // 2. The quiver rides behind the string hand's shoulder, so it follows the
+  //    bow from hand to hand.
+  quiver.update(input.head.pos, input.head.quat, roles.draw);
 
-  // 3. Swing the free hand down to launch, again in the air to catch
+  // 3. Bow: anchored to the grip hand, aimed by grip<-string vector, canted
+  //    by the grip hand's own twist.
+  bowRig.update(dt, input[roles.bow], input[roles.draw], quiver);
+
+  // 4. Swing the free hand down to launch, again in the air to catch
   //    yourself, hold it overhead to sink slowly.
   swingJump.update(dt, bowRig.nocked ? null : input[roles.draw], input.head.pos, body);
   body.update(dt, swingJump.floating);
 
-  // 4. Arrows, world, HUD.
+  // 5. Arrows, world, HUD.
   arrows.update(dt);
   dungeon.update(t);
   hud.set({
     bow: roles.bow, draw: roles.draw, ratio: bowRig.ratio, claim: roles.progress,
-    grab: bowRig.canGrab, air: !body.grounded, flaps: body.flapsUsed,
+    grab: bowRig.canGrab, fetch: bowRig.canFetch, arrowState: bowRig.state,
+    air: !body.grounded, flaps: body.flapsUsed,
     glide: swingJump.floating,
   });
   hud.render();
@@ -249,7 +256,8 @@ function updateOverlay(presenting) {
   if ((overlayTick = (overlayTick + 1) % 6) !== 0) return;
   readout.textContent =
     `bow ${roles.bow}  |  string ${roles.draw}  |  draw ${Math.round(bowRig.ratio * 100)}%` +
-    `  |  grab ${fmt(bowRig.grabDist)}${bowRig.canGrab ? ' *' : ''}` +
+    `  |  arrow ${bowRig.state}${bowRig.canFetch ? ' (quiver *)' : ''}` +
+    `  |  nock ${fmt(bowRig.grabDist)}${bowRig.canGrab ? ' *' : ''}` +
     `  |  y ${player.position.y.toFixed(2)} vy ${body.vel.y.toFixed(1)} flaps ${body.flapsUsed}` +
     `${swingJump.floating ? ' float' : ''}  |  score ${score}  |  shafts ${shafts}`;
 }
@@ -258,7 +266,7 @@ const fmt = (v) => (Number.isFinite(v) ? v.toFixed(2) : '--');
 // Live handles for tuning from the devtools console, e.g.
 //   __AR.config.draw.maxSpeed = 95
 window.__AR = {
-  config: CONFIG, roles, bowRig, arrows, dungeon, player, camera, renderer, body, swingJump,
+  config: CONFIG, roles, bowRig, arrows, dungeon, player, camera, renderer, body, swingJump, quiver,
   input: { xr: xrInput, desktop: deskInput },
   error: () => window.__frameError || null,
   stats: () => ({
@@ -266,7 +274,8 @@ window.__AR = {
     nocked: bowRig.nocked, claim: +roles.progress.toFixed(2),
     headDist: { left: +roles.headDist.left.toFixed(3), right: +roles.headDist.right.toFixed(3) },
     live: arrows.live.length, score, shafts,
-    canGrab: bowRig.canGrab, grabDist: +bowRig.grabDist.toFixed(3),
+    arrow: bowRig.state, canGrab: bowRig.canGrab, canFetch: bowRig.canFetch,
+    grabDist: +bowRig.grabDist.toFixed(3), quiverReach: +quiver.reach.toFixed(3),
     y: +player.position.y.toFixed(3), vy: +body.vel.y.toFixed(2),
     grounded: body.grounded, flaps: body.flapsUsed, floating: swingJump.floating,
     swing: +swingJump.swingSpeed.toFixed(2),

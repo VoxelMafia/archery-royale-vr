@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from './config.js';
-import { buildBow, setBowDraw, nockPoint, applyBowModel } from './bow.js';
+import { buildBow, setBowDraw, nockPoint, applyBowModel, buildArrowMesh } from './bow.js';
 
 const _fwd = new THREE.Vector3();
 const _nat = new THREE.Vector3();
@@ -32,7 +32,17 @@ export class BowRig {
     this.object = buildBow();
     scene.add(this.object);
 
-    this.nocked = false;       // the string hand has hold of the arrow
+    // Arrow lifecycle: the shaft you loose is the shaft that was on the string.
+    //   'none'   nothing nocked - reach behind your shoulder
+    //   'hand'   an arrow out of the quiver, held in the string hand
+    //   'string' resting on the string, nobody holding it
+    //   'drawn'  held by the nock and being pulled
+    this.state = 'none';
+    this.handArrow = buildArrowMesh();
+    this.handArrow.visible = false;
+    scene.add(this.handArrow);
+
+    this.nocked = false;       // === state 'drawn'
     this.drawLen = CONFIG.draw.idle;
     this.ratio = 0;
     this.visualDraw = CONFIG.draw.idle;
@@ -40,10 +50,11 @@ export class BowRig {
     this.nockWorld = new THREE.Vector3();
     this.grabDist = Infinity;  // string hand -> nock, for the HUD/debug
     this.canGrab = false;
+    this.canFetch = false;     // hand is at the quiver
     this.lastHaptic = 0;
     this.onRelease = null;     // (origin, dir, speed, ratio) => void
 
-    setBowDraw(this.object, this.visualDraw, true);
+    setBowDraw(this.object, this.visualDraw, false);
     this.object.updateMatrixWorld(true);
     this.object.localToWorld(nockPoint(this.object, this.visualDraw, this.nockWorld));
   }
@@ -54,26 +65,59 @@ export class BowRig {
   get span() { return CONFIG.draw.max - CONFIG.draw.rest; }
   get locked() { return this.nocked; }
 
-  update(dt, grip, draw) {
+  update(dt, grip, draw, quiver = null) {
     if (!grip) { this.object.visible = false; return; }
     this.object.visible = true;
 
     const d = CONFIG.draw;
     const sep = draw ? grip.pos.distanceTo(draw.pos) : 0;
 
-    // --- grab the arrow / let it fly ---------------------------------------
     this.grabDist = draw ? draw.pos.distanceTo(this.nockWorld) : Infinity;
-    this.canGrab = !this.nocked && this.grabDist <= d.grabRadius;
+    this.canFetch = !!(draw && quiver && this.state === 'none' && quiver.canGrab(draw.pos));
+    this.canGrab = this.state === 'string' && this.grabDist <= d.grabRadius;
 
-    if (draw) {
-      if (this.canGrab && draw.trigger > 0.6) {
-        this.nocked = true;
-        draw.pulse?.(0.25, 25);
-      } else if (this.nocked && draw.trigger < 0.35) {
-        this.release(grip, draw);
+    if (!draw) {
+      // Lost the string hand mid-shot: the arrow stays on the string.
+      if (this.state === 'drawn') this.state = 'string';
+    } else {
+      switch (this.state) {
+        case 'none':
+          // Reach behind the shoulder and squeeze to pull a fresh shaft.
+          if (this.canFetch && draw.trigger > 0.6) {
+            this.state = 'hand';
+            draw.pulse?.(0.3, 30);
+          }
+          break;
+
+        case 'hand':
+          // Carry it to the string. It nocks on contact; if you are still
+          // holding the trigger you go straight into the draw.
+          if (this.grabDist <= d.grabRadius) {
+            this.state = draw.trigger > 0.6 ? 'drawn' : 'string';
+            draw.pulse?.(0.25, 25);
+          }
+          break;
+
+        case 'string':
+          if (this.canGrab && draw.trigger > 0.6) {
+            this.state = 'drawn';
+            draw.pulse?.(0.25, 25);
+          }
+          break;
+
+        case 'drawn':
+          if (draw.trigger < 0.35) this.release(grip, draw);
+          break;
       }
-    } else if (this.nocked) {
-      this.nocked = false;
+    }
+    this.nocked = this.state === 'drawn';
+
+    // The loose arrow in the string hand, on its way to the string.
+    this.handArrow.visible = this.state === 'hand';
+    if (this.state === 'hand') {
+      this.handArrow.position.copy(draw.pos);
+      this.handArrow.quaternion.copy(draw.quat);
+      this.handArrow.translateZ(-CONFIG.arrow.length * 0.28);
     }
 
     // --- draw amount -------------------------------------------------------
@@ -96,7 +140,7 @@ export class BowRig {
     // The string snaps home far faster than you can pull it.
     this.visualDraw += (this.drawLen - this.visualDraw) *
       (this.nocked ? 1 : Math.min(1, dt * 28));
-    setBowDraw(this.object, this.visualDraw, true);
+    setBowDraw(this.object, this.visualDraw, this.state === 'string' || this.state === 'drawn');
 
     // --- transform ---------------------------------------------------------
     this.object.position.copy(grip.pos);
@@ -130,6 +174,9 @@ export class BowRig {
   release(grip, draw) {
     const ratio = this.ratio;
     this.nocked = false;
+    // Loosing SPENDS the arrow: the string is empty until you fetch another.
+    // A half-hearted let-go just leaves it resting on the string.
+    this.state = ratio >= CONFIG.draw.minReleaseRatio ? 'none' : 'string';
     if (ratio >= CONFIG.draw.minReleaseRatio && this.onRelease) {
       const speed = THREE.MathUtils.lerp(CONFIG.draw.minSpeed, CONFIG.draw.maxSpeed, ratio);
       // Launch from the arrow's own head, not from a point near the fist, so

@@ -39,14 +39,25 @@ The literal every-frame reading is still in the box — set
 behaves exactly as described above (there's a test asserting it flips, so the
 trade-off is documented rather than argued about).
 
-### 2. Draw
+### 2. Arrow lifecycle
 
-An arrow is always sitting on the string, part-drawn. You reach for its **nock**
-(within 17 cm) and squeeze the trigger to take hold of it — the draw follows
-your hand from there, so you are pulling the arrow rather than pressing a
-button near the bow. The arrow's tail is welded to the string's nocking point
-and only its head swings aside to clear the riser (archer's paradox), so shaft
-and string are never apart. Hand separation drives the draw:
+One shaft, tracked from the quiver to the target:
+
+```
+none  --reach behind the shoulder + squeeze-->  hand
+hand  --carry it to the nocking point-------->  string
+string --squeeze on the nock----------------->  drawn
+drawn --let go-------------------------------> flies, bow is empty
+```
+
+The quiver rides behind the shoulder of the **string** hand, so it changes
+sides with the bow. The arrow you see on the string is the one that leaves it:
+loosing spends it and the bow is empty until you reach back for another. A
+half-hearted let-go (under 12 % draw) just leaves it resting on the string.
+
+While it is on the string its tail is welded to the nocking point, and only
+its head swings aside to clear the riser (archer's paradox), so shaft and
+string are never apart. Hand separation drives the draw:
 
 ```
 drawLen = clamp(|grip − string| − rest, 0, max − rest)      rest 0.20 m, max 0.62 m
@@ -108,7 +119,8 @@ Until it loads (or if it fails), the procedural stand-in is used.
 | | VR | Desktop |
 |---|---|---|
 | Hand off the bow | hand to head + **grip** | **Q** |
-| Nock & draw | **trigger**, string hand | hold **LMB** |
+| Take a shaft | reach behind the shoulder + **trigger** | **R** |
+| Nock & draw | bring it to the string, **trigger** | hold **LMB** |
 | Loose | release trigger | release **LMB** |
 | Cant the bow | twist the grip wrist | **Z** / **C** |
 | Jump | throw your free hand down | **Space** |
