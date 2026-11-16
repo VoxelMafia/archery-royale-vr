@@ -4,14 +4,16 @@ A three.js / WebXR prototype of the bow for **Archery Royale**, an extraction
 shooter set in an open medieval dungeon. No build step, no assets — open it and
 shoot.
 
+**Live build:** <https://voxelmafia.github.io/archery-royale-vr/>
+
+On a Quest 3: open that URL in the headset browser and press **Enter VR**.
+GitHub Pages serves it over HTTPS, which is all WebXR needs — no sideloading,
+no cable. Every push to `main` redeploys it.
+
 ```bash
-npm run serve        # http://localhost:8080
+npm run serve        # http://localhost:8080 (local dev)
 npm test             # 25 headless checks of the mechanics
 ```
-
-WebXR needs `localhost` or HTTPS. On a Quest, point the headset browser at the
-machine's LAN address over HTTPS (or use `adb reverse tcp:8080 tcp:8080` and
-open `http://localhost:8080`), then press **Enter VR**.
 
 ---
 
