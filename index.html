@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Archery Royale — VR Bow Prototype</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1014; }
+  canvas { display: block; }
+  #overlay {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    pointer-events: none; font: 15px/1.5 Georgia, "Times New Roman", serif;
+    color: #cfd4dc;
+  }
+  #overlay.hidden { display: none; }
+  #panel {
+    pointer-events: auto; max-width: 440px; margin: 16px;
+    padding: 22px 24px; border-radius: 14px;
+    background: rgba(14,16,20,0.82); border: 1px solid rgba(217,178,76,0.45);
+    backdrop-filter: blur(6px);
+  }
+  h1 { margin: 0 0 4px; font-size: 21px; letter-spacing: .06em; color: #d9b24c; }
+  p.sub { margin: 0 0 16px; font-size: 13px; color: #8d95a1; }
+  button {
+    width: 100%; padding: 11px 14px; margin-bottom: 16px; cursor: pointer;
+    font: inherit; color: #14161c; background: #d9b24c;
+    border: 0; border-radius: 8px;
+  }
+  button:disabled { background: #3a3d44; color: #8d95a1; cursor: default; }
+  dl { display: grid; grid-template-columns: 112px 1fr; gap: 5px 12px; margin: 0; font-size: 13px; }
+  dt { color: #d9b24c; }
+  dd { margin: 0; color: #aeb6c2; }
+  #readout {
+    position: fixed; left: 0; right: 0; bottom: 0; padding: 7px 12px;
+    font: 12px/1.4 ui-monospace, Consolas, monospace; color: #8d95a1;
+    background: rgba(14,16,20,0.7); pointer-events: none;
+  }
+  .note { margin: 14px 0 0; font-size: 12px; color: #7c838e; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="overlay">
+  <div id="panel">
+    <h1>ARCHERY ROYALE</h1>
+    <p class="sub">VR bow &amp; arrow prototype — open medieval dungeon</p>
+    <button id="vrBtn" disabled>Checking for headset…</button>
+    <dl>
+      <dt>Mouse</dt><dd>look (click the scene to capture)</dd>
+      <dt>W A S D</dt><dd>move</dd>
+      <dt>Hold LMB</dt><dd>nock &amp; draw — release to loose</dd>
+      <dt>Z / C</dt><dd>cant (roll) the bow on its grip</dd>
+      <dt>Q</dt><dd>raise free hand to head + grip → it takes the bow</dd>
+    </dl>
+    <p class="note">
+      In VR: squeeze <b>grip</b> with a hand brought up to your head to hand off the
+      bow (rifle handle-swap). <b>Trigger</b> on the free hand nocks and draws the
+      string; let go to shoot. Thumbstick walks, hard left/right snap-turns.
+    </p>
+  </div>
+</div>
+<div id="readout">initialising…</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

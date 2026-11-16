@@ -1,0 +1,15 @@
+{
+  "name": "archery-royale-vr-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WebXR bow & arrow prototype for Archery Royale (medieval dungeon extraction shooter)",
+  "type": "module",
+  "scripts": {
+    "dev": "npx --yes http-server . -p 8080 -c-1 -S false",
+    "serve": "npx --yes http-server . -p 8080 -c-1",
+    "test": "node tests/logic.test.mjs"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  }
+}
