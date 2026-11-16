@@ -137,7 +137,7 @@ export class DesktopInput {
     this.pulling = false;
     this.pullT = 0;
     this.claimT = 0;            // seconds of claim gesture left
-    this.swingT = -1;           // feather flap animation clock (s)
+    this.swingT = -1;           // arm-swing animation clock (s)
     this.keys = new Set();
     this.move = { x: 0, y: 0, turn: 0, turnAxis: 0 };
     this.head = { pos: new THREE.Vector3(), quat: new THREE.Quaternion() };
@@ -149,10 +149,11 @@ export class DesktopInput {
 
     addEventListener('keydown', (e) => {
       this.keys.add(e.code);
+      if (e.repeat) return;      // held keys must not re-fire one-shot actions
       // Hold the claim pose until the arbiter commits (cleared by main), with
       // a safety timeout so a missed commit cannot latch it forever.
       if (e.code === 'KeyQ') this.claimT = 1.5;
-      // Space swings the feather hand down for real, rather than calling the
+      // Space swings the free hand down for real, rather than calling the
       // jump directly: the same velocity detector runs as in the headset.
       if (e.code === 'Space' && this.swingT < 0) this.swingT = 0;
     });
@@ -188,7 +189,7 @@ export class DesktopInput {
     this.move.turnAxis = (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
     this.move.turn = 0;
 
-    // Feather swing: 0.5 m down in 0.1 s, then back up over 0.25 s.
+    // Arm swing: 0.5 m down in 0.1 s, then back up over 0.25 s.
     let swingY = 0;
     if (this.swingT >= 0) {
       this.swingT += dt;
@@ -226,8 +227,7 @@ export class DesktopInput {
       // Travel is along z only: rest separation -> full draw.
       const z = THREE.MathUtils.lerp(-0.48, 0.02, this.pullT);
       this._v.set(bowSgn * 0.17, -0.17 + swingY, z);
-      // Grip is held whenever you are not drawing: that is the feather.
-      draw.squeeze = this.pulling ? 0 : 1;
+      draw.squeeze = 0;
       draw.trigger = this.pulling ? 1 : 0;
     }
     draw.pos.copy(this._v).applyQuaternion(hq).add(this.head.pos);

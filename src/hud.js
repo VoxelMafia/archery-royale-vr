@@ -72,7 +72,7 @@ export class BowHud {
       c.fillText(`switching hands... ${Math.round(s.claim * 100)}%`, 28, 216);
     } else if (s.glide) {
       c.fillStyle = '#9ec7e8';
-      c.fillText('feather-fall', 28, 216);
+      c.fillText('slow fall', 28, 216);
     } else if (s.air) {
       c.fillStyle = '#9ec7e8';
       c.fillText(s.flaps > 1 ? 'airborne - second flap spent' : 'airborne - one flap left', 28, 216);

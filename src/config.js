@@ -61,20 +61,21 @@ export const CONFIG = {
     airControl: 0.35,        // fraction of ground speed usable mid-air
   },
 
-  // --- Feather jump (Bonelab-style physical flap) --------------------------
-  feather: {
-    // Swing the feather hand DOWN to launch. Impulse scales with how hard.
-    minSwing: 1.5,     // hand speed (m/s) that counts as a flap
+  // --- Swing jump (Bonelab-style, no item) ---------------------------------
+  jump: {
+    // Swing the free hand DOWN to launch. Impulse scales with how hard.
+    minSwing: 1.6,     // hand speed (m/s) that counts as a flap
+    minBelow: 0.45,    // and the hand must end this far below the head (m)
     maxSwing: 4.5,     // speed at which you get the full impulse
     minImpulse: 3.4,   // upward velocity at minSwing (m/s)
     maxImpulse: 6.2,   // upward velocity at maxSwing (m/s)
     airScale: 0.82,    // the mid-air catch is a touch softer than the first
     maxFlaps: 2,       // ground flap + one in the air = double jump
     cooldown: 0.22,    // seconds between flaps, stops stick-shake spam
-    // Feather-fall: hold the feather up and you sink slowly and land soft.
-    glideHold: 0.25,   // hand must be above the head by this much (m)
-    glideGravity: 0.22,// gravity multiplier while gliding
-    glideMaxFall: 1.6, // terminal speed while gliding (m/s)
+    // Reach up on the way down and you sink slowly, for a soft, aimed landing.
+    floatHold: 0.25,   // hand must be above the head by this much (m)
+    floatGravity: 0.22,// gravity multiplier while floating
+    floatMaxFall: 1.6, // terminal speed while floating (m/s)
     landSmoothing: 14, // how fast the view settles after touchdown (1/s)
   },
 };

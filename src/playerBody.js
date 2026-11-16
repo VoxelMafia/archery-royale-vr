@@ -32,15 +32,15 @@ export class PlayerBody {
     this.airborneFor = 0;
   }
 
-  update(dt, gliding = false) {
+  update(dt, floating = false) {
     const p = CONFIG.player;
-    const f = CONFIG.feather;
+    const j = CONFIG.jump;
 
     if (!this.grounded) {
       this.airborneFor += dt;
-      const g = p.gravity * (gliding ? f.glideGravity : 1);
+      const g = p.gravity * (floating ? j.floatGravity : 1);
       this.vel.y += g * dt;
-      if (gliding) this.vel.y = Math.max(this.vel.y, -f.glideMaxFall);
+      if (floating) this.vel.y = Math.max(this.vel.y, -j.floatMaxFall);
 
       this.rig.position.y += this.vel.y * dt;
 
@@ -62,7 +62,7 @@ export class PlayerBody {
 
     // Critically damped spring back up to standing.
     if (this.absorb !== 0 || this.absorbVel !== 0) {
-      const k = CONFIG.feather.landSmoothing;
+      const k = CONFIG.jump.landSmoothing;
       this.absorbVel += (-this.absorb * k * k - 2 * k * this.absorbVel) * dt;
       this.absorb += this.absorbVel * dt;
       if (Math.abs(this.absorb) < 1e-4 && Math.abs(this.absorbVel) < 1e-3) {

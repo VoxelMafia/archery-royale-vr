@@ -75,14 +75,16 @@ bug here; `npm test` has the case that caught it.)
 
 Undrawn, the bow simply follows the grip hand pose.
 
-### 4. Feather jump
+### 4. Swing jump
 
-Hold the feather (grip, away from your head) and swing your hand **down**. The
-flap reads the hand's real world-space velocity over a ~60 ms window, so a lazy
-wave is a hop and a hard beat is a launch. A second flap in mid-air *sets*
+Throw your free hand **down** — no item, no button. The flap reads the hand's
+velocity **relative to your head** over a ~60 ms window, so a lazy wave is a
+hop and a hard beat is a launch. Head-relative is the whole trick: measured in
+world space, falling drags your hand down with your body and re-triggers the
+jump the instant you drop, which is an infinite bounce. A second flap in mid-air *sets*
 upward velocity rather than adding to it, which cancels the fall and catches
-you cleanly. Hold the feather above your head on the way down and gravity drops
-to a fifth with a 1.6 m/s terminal fall. Landings are absorbed by a critically
+you cleanly. Reach above your head on the way down and gravity drops to a
+fifth with a 1.6 m/s terminal fall. Landings are absorbed by a critically
 damped spring instead of snapping to the floor — a hard stop at ground level
 reads as a jolt through the whole view in VR.
 
@@ -109,9 +111,9 @@ Until it loads (or if it fails), the procedural stand-in is used.
 | Nock & draw | **trigger**, string hand | hold **LMB** |
 | Loose | release trigger | release **LMB** |
 | Cant the bow | twist the grip wrist | **Z** / **C** |
-| Jump (feather) | hold **grip**, swing the hand down | **Space** |
+| Jump | throw your free hand down | **Space** |
 | Double jump | swing again in mid-air | **Space** again |
-| Feather-fall | hold the feather above your head | — |
+| Slow fall | reach overhead while falling | — |
 | Move | left thumbstick | **WASD** |
 | Turn | right thumbstick (smooth) | mouse or **← →** |
 

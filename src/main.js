@@ -7,7 +7,7 @@ import { ArrowManager } from './arrows.js';
 import { XRInput, DesktopInput } from './input.js';
 import { BowHud } from './hud.js';
 import { PlayerBody } from './playerBody.js';
-import { FeatherController } from './feather.js';
+import { SwingJump } from './jump.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ const arrows = new ArrowManager(scene, dungeon.colliders);
 const hud = new BowHud(bowRig.object);
 const roles = new HandRoleArbiter();
 const body = new PlayerBody(player);
-const feather = new FeatherController(scene);
+const swingJump = new SwingJump();
 
 // The black bow replaces the procedural stand-in as soon as it arrives, so a
 // slow download (or a missing file) never blocks the prototype.
@@ -186,10 +186,10 @@ function frame() {
   //    by the grip hand's own twist.
   bowRig.update(dt, input[roles.bow], input[roles.draw]);
 
-  // 3. Feather in the free hand: swing it down to launch, again to catch
-  //    yourself mid-air, hold it overhead to glide.
-  feather.update(dt, bowRig.nocked ? null : input[roles.draw], input.head.pos, body);
-  body.update(dt, feather.gliding);
+  // 3. Swing the free hand down to launch, again in the air to catch
+  //    yourself, hold it overhead to sink slowly.
+  swingJump.update(dt, bowRig.nocked ? null : input[roles.draw], input.head.pos, body);
+  body.update(dt, swingJump.floating);
 
   // 4. Arrows, world, HUD.
   arrows.update(dt);
@@ -197,7 +197,7 @@ function frame() {
   hud.set({
     bow: roles.bow, draw: roles.draw, ratio: bowRig.ratio, claim: roles.progress,
     grab: bowRig.canGrab, air: !body.grounded, flaps: body.flapsUsed,
-    glide: feather.gliding,
+    glide: swingJump.floating,
   });
   hud.render();
 
@@ -251,14 +251,14 @@ function updateOverlay(presenting) {
     `bow ${roles.bow}  |  string ${roles.draw}  |  draw ${Math.round(bowRig.ratio * 100)}%` +
     `  |  grab ${fmt(bowRig.grabDist)}${bowRig.canGrab ? ' *' : ''}` +
     `  |  y ${player.position.y.toFixed(2)} vy ${body.vel.y.toFixed(1)} flaps ${body.flapsUsed}` +
-    `${feather.gliding ? ' glide' : ''}  |  score ${score}  |  shafts ${shafts}`;
+    `${swingJump.floating ? ' float' : ''}  |  score ${score}  |  shafts ${shafts}`;
 }
 const fmt = (v) => (Number.isFinite(v) ? v.toFixed(2) : '--');
 
 // Live handles for tuning from the devtools console, e.g.
 //   __AR.config.draw.maxSpeed = 95
 window.__AR = {
-  config: CONFIG, roles, bowRig, arrows, dungeon, player, camera, renderer, body, feather,
+  config: CONFIG, roles, bowRig, arrows, dungeon, player, camera, renderer, body, swingJump,
   input: { xr: xrInput, desktop: deskInput },
   error: () => window.__frameError || null,
   stats: () => ({
@@ -268,7 +268,7 @@ window.__AR = {
     live: arrows.live.length, score, shafts,
     canGrab: bowRig.canGrab, grabDist: +bowRig.grabDist.toFixed(3),
     y: +player.position.y.toFixed(3), vy: +body.vel.y.toFixed(2),
-    grounded: body.grounded, flaps: body.flapsUsed, gliding: feather.gliding,
-    swing: +feather.swingSpeed.toFixed(2),
+    grounded: body.grounded, flaps: body.flapsUsed, floating: swingJump.floating,
+    swing: +swingJump.swingSpeed.toFixed(2),
   }),
 };
